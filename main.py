@@ -72,29 +72,9 @@ async def f_cols(message: types.Message):
                          "в мире цвета!")
 
 
-@dp.message_handler(commands=['create'])
-async def guess(message: types.Message):
-    if open("start_create_colour.txt").read() == "0":
-        open("start_create_colour.txt", "w").write("1")
-        await message.answer("Введите, пожалуйста, цвет в формате RGB. Например:\n20, 50, 40\nИ ждите результат!")
-
-
-@dp.message_handler()
-async def sekond(message: types.Message):
-    if open("start_create_colour.txt").read() == "1":
-        spisokchek = message.text.split(', ')
-        r = int(spisokchek[0])
-        g = int(spisokchek[1])
-        b = int(spisokchek[2])
-        img = generate_image((r, g, b))
-        open("start_create_colour.txt", "w").write("0")
-        await bot.send_photo(chat_id=message.chat.id, photo=img, caption="Был сгенерирован цвет со значениями " +
-                                                                         f'{r}, {g}, {b}')
-
-
 @dp.message_handler(commands=['guess'])
 async def guess(message: types.Message):
-    if open("waiting_for_answer.txt").read() == "0":
+    if open("waiting_for_answer.txt").read() == "0" and open("start_create_colour.txt").read() == "0":
         color_list = list()
         while len(color_list) != 3:
             r, g, b = randint(0, 255), randint(0, 255), randint(0, 255)
@@ -109,12 +89,21 @@ async def guess(message: types.Message):
                                      "\nВ качестве ответа отправьте цифру, под которой (по Вашему мнению)" +
                                      " указано правильное цветовое значение")
     else:
-        await message.answer("От Вас всё ещё ожидается ответ на вопрос")
+        await message.answer("От Вас всё ещё ожидается либо ответ на вопрос, либо значения цвета для генерации.")
+
+
+@dp.message_handler(commands=['create'])
+async def create(message: types.Message):
+    if open("start_create_colour.txt").read() == "0" and open("waiting_for_answer.txt").read() == "0":
+        open("start_create_colour.txt", "w").write("1")
+        await message.answer("Введите, пожалуйста, цвет в формате RGB. Например:\n20, 50, 40\nИ ждите результат!")
+    else:
+        await message.answer("От Вас всё ещё ожидается либо ответ на вопрос, либо значения цвета для генерации.")
 
 
 @dp.message_handler()
 async def answer(message: types.Message):
-    if open("waiting_for_answer.txt").read() == "1":
+    if open("waiting_for_answer.txt").read() == "1" and open("start_create_colour.txt").read() == "0":
         if message.text == open("answer.txt").read():
             db_sess = db_session.create_session()
             user = db_sess.query(User).filter(User.username == message.chat.id).first()
@@ -130,10 +119,22 @@ async def answer(message: types.Message):
             await message.answer("Мои соболезнования, Вы не угадали...\n\nЕсли хотите попробовать свои силы ещё раз, " +
                                  "просто введите команду\n/guess ещё раз!")
         open("waiting_for_answer.txt", "w").write("0")
+    elif open("start_create_colour.txt").read() == "1" and open("waiting_for_answer.txt").read() == "0":
+        spisokchek = message.text.split(', ')
+        r = int(spisokchek[0])
+        g = int(spisokchek[1])
+        b = int(spisokchek[2])
+        img = generate_image((r, g, b))
+        open("start_create_colour.txt", "w").write("0")
+        await bot.send_photo(chat_id=message.chat.id, photo=img, caption="Был сгенерирован цвет со значениями " +
+                                                                         f'{r}, {g}, {b}')
     else:
-        if int(message.text) in range(1, 4):
+        if message.text in ['1', '2', '3']:
             await message.answer("От Вас пока что не ожидается ответ на вопрос. Если Вы хотите начать, используйте " +
                                  "команду /guess")
+        elif len(message.text.split(', ')) == 3:
+            await message.answer("От Вас пока что не ожидается значения для генерации цвета. Если Вы хотите начать, " +
+                                 "используйте команду /create")
         else:
             await message.answer(f'Я получил сообщение "{message.text}", но я не знаю как на него отвечать :(\n\n' +
                                  'Лучше воспользуйтесь теми командами, которые я знаю (их можно получить с помощью ' +
